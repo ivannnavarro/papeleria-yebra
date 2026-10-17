@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Papelería Yebra</title>
+<meta name="description" content="Caja, inventario, historial de ventas y estadísticas de Papelería Yebra.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Yebra">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1E4FD8">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="side" id="side" aria-label="Secciones"></aside>
+  <div class="main">
+    <header class="top">
+      <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34"><div><b>Papelería Yebra</b><small id="topSub">Caja e inventario</small></div></div>
+      <button class="sync" id="syncPill" type="button" title="Estado de sincronización"></button>
+      <button class="help-btn" id="helpBtn" type="button" aria-label="Ayuda">?</button>
+    </header>
+    <main id="view" class="view"></main>
+  </div>
+</div>
+<nav class="bottom" id="bottom" aria-label="Secciones"></nav>
+<div class="modal-wrap" id="modal" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="seed.js"></script>
+<script src="app.js"></script>
+<script>
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>
