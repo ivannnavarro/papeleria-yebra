@@ -27,30 +27,24 @@ Sirve igual en la computadora y en el celular. Tiene 7 secciones: **Inicio** (re
 
 ## 2. Conectar celular y computadora (muy recomendado)
 
-Sin este paso, cada equipo guarda **sus propias** ventas: lo que vendas en la computadora no se ve en el celular. Con este paso todo se guarda en tu hoja de Google y todos los equipos ven lo mismo. Además, si se borra el navegador, no pierdes nada.
+Sin este paso, cada equipo guarda **sus propias** ventas: lo que vendas en la computadora no se ve en el celular. Con este paso todo se guarda en tu repositorio **privado** de GitHub **papeleria-yebra-datos** (ya está creado) y todos los equipos ven lo mismo. Además, si se borra el navegador, no pierdes nada.
 
-Se hace **una sola vez** (unos 5 minutos):
+Solo hay que sacar una **llave** (se hace una sola vez, unos 3 minutos):
 
-1. En la computadora entra a **https://sheets.new** con tu cuenta **personal** de Google (Gmail). Se crea una hoja **nueva y vacía** que es tuya. Ponle de nombre “Papelería Yebra - App”.
-   - No uses la hoja vieja del inventario: esa ya no se ocupa (el inventario ahora vive en la app) y además es de solo lectura.
-   - Evita la cuenta de la escuela: esas cuentas suelen tener bloqueado Apps Script.
-2. Menú **Extensiones → Apps Script**.
-3. Borra lo que aparece y pega todo el contenido del archivo **`google-sheets/Codigo.gs`** (está en esta misma carpeta, o en GitHub: https://github.com/ivannnavarro/papeleria-yebra/blob/main/google-sheets/Codigo.gs).
-4. En la línea `const CLAVE = 'cambia-esta-clave';` cambia `cambia-esta-clave` por una clave tuya (ej. `yebra-2026-pluma`). Guarda (ícono de disquete).
-5. Arriba a la derecha: **Implementar → Nueva implementación**.
-   - Engrane ⚙️ → **Aplicación web**.
-   - **Ejecutar como:** Yo.
-   - **Quién tiene acceso:** Cualquier usuario.
-   - **Implementar**. Google te pide permiso: **Autorizar acceso** → elige tu cuenta → *Configuración avanzada* → *Ir a … (no seguro)* → **Permitir**. (Es tu propio código, por eso sale ese aviso.)
-6. Copia la **URL de la aplicación web** (termina en `/exec`).
-7. En la app: **Ajustes → Celular y computadora juntos**, pega la dirección y la clave → **Conectar**.
-8. Repite el paso 7 en cada celular o computadora (misma dirección y misma clave).
+1. En la computadora abre este link (ya con tu sesión de GitHub):
+   **https://github.com/settings/personal-access-tokens/new?name=Papeleria+Yebra+app&description=Guardar+ventas+e+inventario&expires_in=none&contents=write**
+2. Revisa que quede así (si algo no se llenó solo, ponlo a mano):
+   - **Token name:** Papeleria Yebra app
+   - **Expiration:** No expiration (sin vencimiento)
+   - **Repository access:** **Only select repositories** → elige **papeleria-yebra-datos** (solo ese)
+   - **Permissions → Repository permissions → Contents:** **Read and write**
+3. Abajo: **Generate token** → **Generate token** otra vez. Copia la llave (empieza con `github_pat_…`). **Solo se muestra una vez.**
+4. En la app: **Ajustes → Celular y computadora juntos**, pega la llave → **Conectar**.
+5. Haz lo mismo en el celular: pega **la misma llave**. Para pasarla al celular, mándatela a ti mismo por WhatsApp y **borra el mensaje** después.
 
-Listo. Arriba a la derecha la app dice **✓ Guardado en la nube**. Si no hay internet, las ventas se guardan en el equipo y se suben solas cuando regresa la señal.
+Listo. Arriba a la derecha el botón de la nube tiene un **puntito verde**. Si no hay internet, las ventas se guardan en el equipo y se suben solas cuando regresa la señal. Cada equipo revisa cambios de los demás cada 45 segundos y al abrir la app.
 
-En esa hoja nueva aparecen 2 pestañas:
-- **APP_Ventas**: todas las ventas, una línea por artículo (fecha, hora, vendedor, descripción, precio, efectivo, tarjeta…). Esta sí la puedes ver y filtrar.
-- **APP_Movimientos**: es la memoria de la app. **No la edites ni la borres.**
+**Cuida la llave:** con ella se pueden cambiar las ventas guardadas (solo de ese repositorio, nada más de tu cuenta). Si se pierde un celular o crees que alguien la vio, bórrala en https://github.com/settings/personal-access-tokens y saca una nueva.
 
 > Si vendiste en un equipo **antes** de conectarlo, esas ventas se suben solas al conectarlo.
 
@@ -124,5 +118,5 @@ Importé las 4 pestañas de tu hoja: **1,251 productos** (Papelería 1,047, Rega
 ## 5. Para Claude Code (cambios futuros)
 
 - Código en `C:\…\papeleria-yebra` y en GitHub `ivannnavarro/papeleria-yebra` (rama `main`, GitHub Pages).
-- `seed.js` es el inventario inicial. **No lo vuelvas a generar** una vez que se usa la app: los cambios viven como movimientos (ventas, entradas, ediciones) en `APP_Movimientos`, y sus `id` de producto (`p1`, `p2`…) dependen de `seed.js`.
+- `seed.js` es el inventario inicial. **No lo vuelvas a generar** una vez que se usa la app: los cambios viven como movimientos (ventas, entradas, ediciones) en el repositorio privado `ivannnavarro/papeleria-yebra-datos` (`ops/<equipo>/<día>.json`), y sus `id` de producto (`p1`, `p2`…) dependen de `seed.js`.
 - Si cambias `app.js` o `app.css`, sube `VERSION` en `sw.js` para que los celulares bajen la nueva versión.

@@ -1,7 +1,7 @@
 /* Papelería Yebra — caja, inventario, surtido, ventas y estadísticas.
    Todo cambio (venta, entrada de mercancía, producto editado…) se guarda como un "movimiento".
    El inventario y las ventas se calculan juntando el inventario inicial (seed.js) con los movimientos.
-   Si está conectada a Google Sheets, los movimientos se comparten entre celular y computadora. */
+   Si está conectada a GitHub (repositorio privado de datos), los movimientos se comparten entre celular y computadora. */
 "use strict";
 
 /* ================= utilidades ================= */
@@ -146,10 +146,12 @@ const AJUSTES_INICIALES = {
   stockMin: 2
 };
 
+const REPO_DATOS = "ivannnavarro/papeleria-yebra-datos";
 const S = {
-  serverOps: [],      // movimientos ya guardados en Google Sheets
-  pending: [],        // movimientos hechos aquí que faltan por subir (o todos, si no hay Sheets)
-  local: { url: "", clave: "", device: "", tips: {}, welcomed: false, cart: [], lastSeller: "", lastView: "", surtir: {} },
+  serverOps: [],      // movimientos ya guardados en GitHub (de todos los equipos)
+  remote: { files: {}, etag: "" }, // copia local de los archivos del repositorio de datos
+  pending: [],        // movimientos hechos aquí que faltan por subir (o todos, si no está conectada)
+  local: { token: "", repo: REPO_DATOS, device: "", tips: {}, welcomed: false, cart: [], lastSeller: "", lastView: "", surtir: {} },
   sync: { state: "off", msg: "" }
 };
 let P = new Map();     // productos (id -> producto)
@@ -263,51 +265,111 @@ function restockList() {
 const buyQty = r => S.local.surtir[r.p.id]?.q ?? r.sug;
 const isBought = id => !!S.local.surtir[id]?.ok;
 
-/* ================= sincronización con Google Sheets ================= */
+/* ================= sincronización con GitHub =================
+   Cada equipo escribe solo sus propios archivos: ops/<equipo>/<día>.json (lista de movimientos).
+   Para leer, se baja la lista de archivos del repositorio y solo los que cambiaron. */
 let syncing = false, syncTimer = null;
 function syncSoon(ms = 1000) { clearTimeout(syncTimer); syncTimer = setTimeout(sync, ms); }
 
+const toB64 = s => { const b = new TextEncoder().encode(s); let bin = ""; for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(bin); };
+const fromB64 = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, "")), c => c.charCodeAt(0)));
+
+class GhError extends Error { constructor(status, msg) { super(msg || "GitHub " + status); this.status = status; } }
+async function gh(path, { method = "GET", body, headers = {}, token = S.local.token } = {}) {
+  const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    return await fetch("https://api.github.com" + path, {
+      method, body: body ? JSON.stringify(body) : undefined, cache: "no-store", signal: ctrl.signal,
+      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", ...headers }
+    });
+  } finally { clearTimeout(to); }
+}
+const repoPath = (p = "") => `/repos/${S.local.repo || REPO_DATOS}${p}`;
+
+function remoteOps() {
+  const m = new Map();
+  for (const f of Object.values(S.remote.files)) for (const o of f.ops) m.set(o.id, o);
+  return [...m.values()].sort((a, b) => a.f < b.f ? -1 : a.f > b.f ? 1 : a.id < b.id ? -1 : 1);
+}
+
+async function pushPending() {
+  const sending = S.pending.slice();
+  if (!sending.length) return false;
+  const path = `ops/${S.local.device}/${dayKey(new Date())}.json`;
+  for (let intento = 0; intento < 2; intento++) {
+    let cur = S.remote.files[path];
+    if (!cur || intento) { // puede existir aunque este equipo no lo sepa
+      const r = await gh(repoPath(`/contents/${path}?ref=main`));
+      if (r.ok) { const j = await r.json(); cur = { sha: j.sha, ops: JSON.parse(fromB64(j.content)) }; }
+      else if (r.status !== 404) throw new GhError(r.status);
+      else cur = null;
+    }
+    const have = new Set((cur?.ops || []).map(o => o.id));
+    const merged = (cur?.ops || []).concat(sending.filter(o => !have.has(o.id)));
+    const r = await gh(repoPath(`/contents/${path}`), {
+      method: "PUT",
+      body: { message: `${sending.length} movimiento(s) · equipo ${S.local.device}`, content: toB64(JSON.stringify(merged)), branch: "main", ...(cur ? { sha: cur.sha } : {}) }
+    });
+    if (r.status === 409 || r.status === 422) continue; // alguien más escribió al mismo tiempo: reintentar
+    if (!r.ok) throw new GhError(r.status);
+    const j = await r.json();
+    S.remote.files[path] = { sha: j.content.sha, ops: merged };
+    const sent = new Set(sending.map(o => o.id));
+    S.pending = S.pending.filter(o => !sent.has(o.id)); // lo que se agregó mientras subía se queda pendiente
+    return true;
+  }
+  throw new GhError(409);
+}
+
+async function pullRemote() {
+  const r = await gh(repoPath("/git/trees/main?recursive=1"), { headers: S.remote.etag ? { "If-None-Match": S.remote.etag } : {} });
+  if (r.status === 304) return false;
+  if (!r.ok) throw new GhError(r.status);
+  const j = await r.json();
+  const files = j.tree.filter(t => t.type === "blob" && /^ops\/.+\.json$/.test(t.path));
+  const want = files.filter(t => S.remote.files[t.path]?.sha !== t.sha);
+  for (let i = 0; i < want.length; i += 8) {
+    await Promise.all(want.slice(i, i + 8).map(async t => {
+      const b = await gh(repoPath(`/git/blobs/${t.sha}`));
+      if (!b.ok) throw new GhError(b.status);
+      const bj = await b.json();
+      S.remote.files[t.path] = { sha: t.sha, ops: JSON.parse(fromB64(bj.content)) };
+    }));
+  }
+  const keep = new Set(files.map(f => f.path));
+  let removed = false;
+  for (const k of Object.keys(S.remote.files)) if (!keep.has(k)) { delete S.remote.files[k]; removed = true; }
+  S.remote.etag = r.headers.get("ETag") || "";
+  return want.length > 0 || removed;
+}
+
 async function sync(manual) {
-  if (!S.local.url) { S.sync.state = "off"; paintSync(); return; }
-  if (syncing) return;
+  if (!S.local.token) { S.sync.state = "off"; paintSync(); return; }
+  if (syncing) { if (manual) toast("Ya se está guardando…"); return; }
   if (!navigator.onLine) { S.sync.state = "warn"; S.sync.msg = "Sin internet"; paintSync(); return; }
   syncing = true; S.sync.state = "busy"; paintSync();
   try {
-    const desde = S.serverOps.length;
-    let j = await call({ desde, ops: S.pending });
-    if (j.total < desde || desde + j.ops.length !== j.total) { // la hoja cambió: bajar todo de nuevo
-      S.serverOps = [];
-      j = await call({ desde: 0, ops: [] });
-    }
-    S.serverOps = S.serverOps.concat(j.ops);
-    const ids = new Set(S.serverOps.map(o => o.id));
-    S.pending = S.pending.filter(o => !ids.has(o.id));
-    await store.set("serverOps", S.serverOps);
+    const subio = await pushPending();
+    const bajo = await pullRemote();
+    S.serverOps = remoteOps();
+    await store.set("remote", S.remote);
     await store.set("pending", S.pending);
     S.sync.state = S.pending.length ? "warn" : "ok";
     S.sync.msg = S.pending.length ? `${S.pending.length} sin subir` : "";
     S.sync.last = new Date();
-    if (j.ops.length) { rebuild(); refresh(true); }
+    if (subio || bajo) { rebuild(); refresh(true); }
+    if (S.pending.length) syncSoon(1500);
     if (manual) toast("Todo está al día");
   } catch (e) {
     S.sync.state = "warn";
-    S.sync.msg = String(e.message || e).includes("clave") ? "Clave incorrecta" : "Sin conexión";
-    if (manual) toast("No se pudo conectar: " + S.sync.msg);
+    const st = e.status;
+    S.sync.msg = st === 401 ? "Llave vencida o incorrecta" : st === 403 ? "La llave no tiene permiso" : st === 404 ? "No encuentro el repositorio" : "Sin conexión";
+    if (manual) toast("No se pudo guardar: " + S.sync.msg);
   } finally { syncing = false; paintSync(); }
 }
 
-async function call(body, url = S.local.url, clave = S.local.clave) {
-  const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 30000);
-  try {
-    const r = await fetch(url, { method: "POST", body: JSON.stringify({ clave, dispositivo: S.local.device, ...body }), headers: { "Content-Type": "text/plain;charset=utf-8" }, signal: ctrl.signal, redirect: "follow" });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "error");
-    return j;
-  } finally { clearTimeout(to); }
-}
-
 function syncText() {
-  if (!S.local.url) return ["off", "Solo en este equipo. Toca para conectar el celular y la computadora."];
+  if (!S.local.token) return ["off", "Solo en este equipo. Toca para conectar el celular y la computadora."];
   if (S.sync.state === "busy") return ["busy", "Guardando…"];
   if (S.sync.state === "ok") return ["ok", "Guardado en la nube. Celular y computadora al día."];
   return ["warn", `${S.sync.msg || "Sin conexión"}. Las ventas se guardan aquí y se suben solas cuando regrese el internet.`];
@@ -315,7 +377,7 @@ function syncText() {
 function paintSync() {
   const [st, txt] = syncText();
   const b = $("#syncBtn");
-  b.innerHTML = ic(S.local.url ? (st === "busy" ? "refresh" : "cloud") : "phone") + `<span class="dot ${st}"></span>`;
+  b.innerHTML = ic(S.local.token ?(st === "busy" ? "refresh" : "cloud") : "phone") + `<span class="dot ${st}"></span>`;
   b.title = txt; b.setAttribute("aria-label", txt);
 }
 
@@ -1172,16 +1234,17 @@ function vEstadisticas() {
 
 /* ================= AJUSTES ================= */
 function vAjustes() {
-  const conectado = !!S.local.url;
+  const conectado = !!S.local.token;
+  const repo = S.local.repo || REPO_DATOS;
   view.innerHTML = `
   <div class="head"><span></span><button class="btn" type="button" data-act="ayuda">${ic("help")} Cómo se usa la app</button></div>
   <div class="charts">
     <div class="card white wide">
       <h3 class="row" style="gap:8px">${ic("cloud")} Celular y computadora juntos</h3>
-      <p class="muted" style="margin:6px 0 12px">${conectado ? `Conectada a Google Sheets. Las ventas que hagas aquí se ven en los otros equipos.${S.sync.last ? " Última vez: " + hora(S.sync.last) + "." : ""}` : `Ahora las ventas se guardan <b>solo en este equipo</b>. Conéctala a una hoja de Google nueva y vacía (solo sirve como “nube”) para ver lo mismo en el celular y en la computadora (y no perder nada si se borra el navegador). <a href="https://github.com/ivannnavarro/papeleria-yebra/blob/main/GUIA.md#2-conectar-celular-y-computadora-muy-recomendado" target="_blank" rel="noopener">Ver cómo hacerlo (5 minutos)</a>.`}</p>
+      <p class="muted" style="margin:6px 0 12px">${conectado ? `Conectada a GitHub (<b>${esc(repo)}</b>, privado). Las ventas que hagas aquí se ven en los otros equipos.${S.sync.last ? " Última vez: " + hora(S.sync.last) + "." : ""}` : `Ahora las ventas se guardan <b>solo en este equipo</b>. Pega aquí tu llave de GitHub para guardar todo en tu repositorio privado y ver lo mismo en el celular y en la computadora. <a href="https://github.com/ivannnavarro/papeleria-yebra/blob/main/GUIA.md#2-conectar-celular-y-computadora-muy-recomendado" target="_blank" rel="noopener">Cómo sacar la llave (3 minutos)</a>.`}</p>
       <div class="grid2">
-        <label class="f"><span>Dirección de la hoja (termina en /exec)</span><input class="input" id="su" value="${esc(S.local.url)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
-        <label class="f"><span>Clave</span><input class="input" id="sk" value="${esc(S.local.clave)}" placeholder="La misma que pusiste en la hoja"></label>
+        <label class="f"><span>Llave de GitHub (empieza con github_pat_)</span><input class="input" id="tk" type="password" autocomplete="off" spellcheck="false" placeholder="${conectado ? "Guardada en este equipo. Pega otra para cambiarla" : "github_pat_…"}"></label>
+        <label class="f"><span>Repositorio de datos</span><input class="input" id="rp" value="${esc(repo)}" spellcheck="false"></label>
       </div>
       <div class="row wrap" style="margin-top:12px"><button class="btn pri" type="button" data-act="conectar">${conectado ? "Guardar cambios" : "Conectar"}</button>${conectado ? `<button class="btn" type="button" data-act="syncAhora">${ic("refresh")} Sincronizar ahora</button><button class="btn bad" type="button" data-act="desconectar">Desconectar</button>` : ""}</div>
       ${S.pending.length ? `<p class="muted" style="margin:10px 0 0">${plural(S.pending.length, "movimiento guardado", "movimientos guardados")} en este equipo${conectado ? " esperando subir" : ""}.</p>` : ""}
@@ -1447,22 +1510,26 @@ const ACT = {
   },
 
   conectar: async () => {
-    const url = $("#su").value.trim(), clave = $("#sk").value.trim();
-    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast("La dirección debe empezar con https://script.google.com/");
-    if (!clave) return toast("Escribe la clave");
+    const token = $("#tk").value.trim() || S.local.token;
+    const repo = $("#rp").value.trim().replace(/^https:\/\/github\.com\//, "").replace(/\/$/, "") || REPO_DATOS;
+    if (!token) return toast("Pega la llave de GitHub");
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return toast("El repositorio debe ser usuario/nombre");
     toast("Probando conexión…", 8000);
-    try { await call({ desde: 0, ops: [], soloProbar: true }, url, clave); }
-    catch (e) { return toast("No se pudo conectar: " + (String(e.message).includes("clave") ? "la clave no coincide" : "revisa la dirección")); }
-    S.local.url = url; S.local.clave = clave; await saveLocal();
-    S.serverOps = []; await store.set("serverOps", []);
+    let r;
+    try { r = await gh(`/repos/${repo}`, { token }); }
+    catch (e) { return toast("No se pudo conectar. Revisa el internet."); }
+    if (r.status === 401) return toast("La llave no es válida o ya venció");
+    if (!r.ok) return toast("Esa llave no tiene acceso al repositorio " + repo);
+    const cambioRepo = repo !== (S.local.repo || REPO_DATOS);
+    S.local.token = token; S.local.repo = repo; await saveLocal();
+    if (cambioRepo) { S.remote = { files: {}, etag: "" }; S.serverOps = []; await store.set("remote", S.remote); }
     toast("Conectada. Subiendo y bajando ventas…");
     await sync(); vAjustes();
   },
   desconectar: async () => {
-    if (!confirm("¿Desconectar de Google Sheets? Este equipo dejará de ver las ventas de los otros.")) return;
-    S.pending = S.serverOps.concat(S.pending); S.serverOps = [];
-    S.local.url = ""; await saveLocal(); await store.set("pending", S.pending); await store.set("serverOps", []);
-    paintSync(); vAjustes();
+    if (!confirm("¿Desconectar de GitHub? Este equipo dejará de ver las ventas de los otros (lo que ya bajó se queda aquí).")) return;
+    S.local.token = ""; await saveLocal();
+    S.sync.state = "off"; paintSync(); vAjustes();
   },
   syncAhora: () => sync(true),
   agregarVend: async () => {
@@ -1486,8 +1553,9 @@ const VIEWS = { inicio: vInicio, vender: vVender, surtir: vSurtir, inventario: v
 
 /* ================= arranque ================= */
 (async function start() {
-  const [serverOps, pending, local] = await Promise.all([store.get("serverOps"), store.get("pending"), store.get("local")]);
-  S.serverOps = serverOps || []; S.pending = pending || [];
+  const [remote, pending, local] = await Promise.all([store.get("remote"), store.get("pending"), store.get("local")]);
+  if (remote && remote.files) S.remote = remote;
+  S.serverOps = remoteOps(); S.pending = pending || [];
   Object.assign(S.local, local || {});
   S.local.surtir ||= {};
   if (!S.local.device) { S.local.device = uid("eq"); saveLocal(); }
@@ -1495,7 +1563,7 @@ const VIEWS = { inicio: vInicio, vender: vVender, surtir: vSurtir, inventario: v
   rebuild();
   $("#helpBtn").innerHTML = ic("help");
   $("#helpBtn").onclick = () => ayuda(false);
-  $("#syncBtn").onclick = () => S.local.url ? sync(true) : go("ajustes");
+  $("#syncBtn").onclick = () => S.local.token ? sync(true) : go("ajustes");
   const h = location.hash.slice(1);
   go(VIEWS[h] ? h : VIEWS[S.local.lastView] ? S.local.lastView : "inicio");
   paintSync();
