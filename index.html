@@ -4,15 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Papelería Yebra</title>
-<meta name="description" content="Caja, inventario, historial de ventas y estadísticas de Papelería Yebra.">
+<meta name="description" content="Caja, inventario, surtido, historial de ventas y estadísticas de Papelería Yebra.">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Yebra">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#1E4FD8">
+<meta name="theme-color" content="#0B1A3D">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -20,9 +23,10 @@
   <aside class="side" id="side" aria-label="Secciones"></aside>
   <div class="main">
     <header class="top">
-      <div class="brand"><img src="icons/icon-192.png" alt="" width="34" height="34"><div><b>Papelería Yebra</b><small id="topSub">Caja e inventario</small></div></div>
-      <button class="sync" id="syncPill" type="button" title="Estado de sincronización"></button>
-      <button class="help-btn" id="helpBtn" type="button" aria-label="Ayuda">?</button>
+      <div class="ttl"><img src="icons/icon-192.png" alt="" width="34" height="34"><div style="min-width:0"><small>Papelería Yebra</small><h1 id="pageTitle">Inicio</h1></div></div>
+      <span id="topExtra"></span>
+      <button class="round" id="syncBtn" type="button" title="Estado de sincronización"></button>
+      <button class="round" id="helpBtn" type="button" aria-label="Ayuda" title="Cómo se usa"></button>
     </header>
     <main id="view" class="view"></main>
   </div>

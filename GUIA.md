@@ -4,7 +4,7 @@ La app está en internet en:
 
 **https://ivannnavarro.github.io/papeleria-yebra/**
 
-Sirve igual en la computadora y en el celular. Tiene 5 secciones: **Vender** (la caja), **Inventario**, **Ventas** (historial), **Estadísticas** y **Ajustes**.
+Sirve igual en la computadora y en el celular. Tiene 7 secciones: **Inicio** (resumen), **Vender** (la caja), **Surtir** (lista para el proveedor), **Inventario**, **Ventas** (historial), **Estadísticas** y **Ajustes**. En el celular, Inventario, Estadísticas y Ajustes están en el botón **Más**.
 
 ---
 
@@ -71,6 +71,18 @@ En tu hoja aparecen 2 pestañas nuevas:
    - La **fecha y la hora** se guardan solas.
 
 Si un producto no tiene precio, la app te lo pregunta la primera vez y lo guarda.
+
+### Inicio
+- Resumen como tablero: productos por surtir, agotados, poco stock, ventas de hoy, valor del inventario, ventas por mes (este año contra el pasado), productos por surtir por categoría y la tabla de recomendación de surtido.
+
+### Surtir (para ir con el proveedor)
+- Salen solos los productos **agotados** y los que llegaron a su **mínimo** (2 piezas, se cambia en Ajustes o por producto en Editar).
+- Cada uno trae cuántos **comprar**: se calcula con lo que se vendió en los últimos 30 días. Se puede cambiar con − y +.
+- Arriba van primero los que **más se venden**. Filtros: Agotados, Poco stock, Se venden, por categoría.
+- **Agregar producto**: para comprar algo que todavía no se acaba (también desde Inventario con el botón del camión).
+- Toca el círculo para marcar lo que **ya compraste**. Al regresar, **Sumar al inventario** registra la entrada de todo lo marcado (puedes corregir piezas y costo).
+- **Compartir** manda la lista por WhatsApp o la copia; **Excel** la descarga.
+- Las palomitas y cantidades de esta lista se guardan en ese celular.
 
 ### Inventario
 - Cada venta descuenta las piezas sola.
