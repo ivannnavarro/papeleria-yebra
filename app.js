@@ -343,6 +343,59 @@ async function pullRemote() {
   return want.length > 0 || removed;
 }
 
+/* ---------- conectar otro equipo con un QR / enlace ---------- */
+const APP_URL = location.origin + location.pathname;
+const b64url = s => toB64(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64url = s => fromB64(s.replace(/-/g, "+").replace(/_/g, "/"));
+const linkConexion = () => `${APP_URL}#conectar=${b64url(JSON.stringify({ t: S.local.token, r: S.local.repo || REPO_DATOS }))}`;
+function leerConexion(text) {
+  const m = String(text || "").match(/conectar=([\w-]+)/);
+  if (!m) return null;
+  try { const j = JSON.parse(unb64url(m[1])); return j && j.t ? { token: j.t, repo: j.r || REPO_DATOS } : null; } catch (e) { return null; }
+}
+async function conectarCon(token, repo) {
+  toast("Probando conexión…", 8000);
+  let r;
+  try { r = await gh(`/repos/${repo}`, { token }); }
+  catch (e) { toast("No se pudo conectar. Revisa el internet."); return false; }
+  if (r.status === 401) { toast("La llave no es válida o ya venció"); return false; }
+  if (!r.ok) { toast("Esa llave no tiene acceso al repositorio " + repo); return false; }
+  if (repo !== (S.local.repo || REPO_DATOS)) { S.remote = { files: {}, etag: "" }; S.serverOps = []; await store.set("remote", S.remote); }
+  S.local.token = token; S.local.repo = repo; await saveLocal();
+  toast("Conectada. Bajando las ventas…");
+  await sync();
+  return true;
+}
+function pedirConexion(cx) {
+  if (cx.token === S.local.token) { toast("Este equipo ya estaba conectado"); return; }
+  const m = openModal(`${mh("Conectar este equipo")}
+    <p>Este equipo va a ver y guardar las ventas y el inventario de <b>Papelería Yebra</b>, igual que los demás.</p>
+    <div class="mf"><button class="btn" type="button" data-act="cerrar">Ahora no</button><button class="btn pri" type="button" id="cxok">${ic("cloud")} Conectar</button></div>`);
+  $("#cxok", m).onclick = async () => {
+    $("#cxok", m).disabled = true;
+    if (!(await conectarCon(cx.token, cx.repo))) { $("#cxok", m).disabled = false; return; }
+    openModal(`<div class="done-ic">${ic("check")}</div><h2 style="text-align:center">Equipo conectado</h2>
+      <p style="text-align:center" class="muted">Ya ve las mismas ventas e inventario que los demás.</p>
+      ${installBlock(true)}
+      <div class="mf"><button class="btn pri big" type="button" data-act="cerrar">Empezar</button></div>`);
+  };
+}
+
+/* ---------- instalar como app ---------- */
+let installEvt = null;
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isAndroid = () => /android/i.test(navigator.userAgent);
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; if (current === "inicio" || current === "ajustes") VIEWS[current](); });
+addEventListener("appinstalled", () => { installEvt = null; toast("App instalada. Ya la encuentras con tus apps."); if (current === "inicio") vInicio(); });
+function installBlock(always) {
+  if (isStandalone()) return always ? "" : `<p class="muted" style="margin:0">Ya estás usando la app instalada en este equipo.</p>`;
+  if (installEvt) return `<div class="info">${ic("phone")}<div class="grow"><b>Instálala en este equipo</b><br>Queda con su ícono como cualquier app y abre a pantalla completa.<div style="margin-top:8px"><button class="btn pri sm" type="button" data-act="instalar">${ic("download", 15)} Instalar app</button></div></div></div>`;
+  if (isIOS()) return `<div class="info">${ic("phone")}<div><b>Ponla en la pantalla de inicio (iPhone)</b><br>Ábrela en <b>Safari</b> → toca <b>Compartir</b> (cuadrito con flecha) → <b>Agregar a pantalla de inicio</b> → <b>Agregar</b>.</div></div>`;
+  if (isAndroid()) return `<div class="info">${ic("phone")}<div><b>Ponla en la pantalla de inicio (Android)</b><br>En Chrome toca el menú <b>⋮</b> (arriba a la derecha) → <b>Instalar app</b> o <b>Agregar a pantalla principal</b>.</div></div>`;
+  return `<div class="info">${ic("download")}<div><b>Instálala en esta computadora</b><br>En Chrome o Edge, toca el ícono de instalar a la derecha de la barra de dirección, o el menú <b>⋮</b> → <b>Instalar Papelería Yebra</b>.</div></div>`;
+}
+
 async function sync(manual) {
   if (!S.local.token) { S.sync.state = "off"; paintSync(); return; }
   if (syncing) { if (manual) toast("Ya se está guardando…"); return; }
@@ -511,6 +564,7 @@ function vInicio() {
   const top = rs.slice(0, 10);
   view.innerHTML = `
   ${tip("inicio", "Aquí ves de un vistazo lo que falta en la tienda. Toca <b>Productos por surtir</b> para abrir la lista de compras.")}
+  ${!isStandalone() && !S.local.tips.instalar && (installEvt || isIOS() || isAndroid()) ? `<div class="tip inst">${installBlock(true)}<button class="x" data-act="tipOff" data-id="instalar" aria-label="Ocultar">${ic("x", 16)}</button></div>` : ""}
   <div class="kpis five">
     ${kpi({ icon: "cart", val: int(rs.length), label: "Productos por surtir", cls: "alert", go: "surtir" })}
     ${kpi({ icon: "ban", val: int(outN), label: "Agotados", act: "surtirFil", data: 'data-k="agotado"' })}
@@ -1246,8 +1300,12 @@ function vAjustes() {
         <label class="f"><span>Llave de GitHub (empieza con github_pat_)</span><input class="input" id="tk" type="password" autocomplete="off" spellcheck="false" placeholder="${conectado ? "Guardada en este equipo. Pega otra para cambiarla" : "github_pat_…"}"></label>
         <label class="f"><span>Repositorio de datos</span><input class="input" id="rp" value="${esc(repo)}" spellcheck="false"></label>
       </div>
-      <div class="row wrap" style="margin-top:12px"><button class="btn pri" type="button" data-act="conectar">${conectado ? "Guardar cambios" : "Conectar"}</button>${conectado ? `<button class="btn" type="button" data-act="syncAhora">${ic("refresh")} Sincronizar ahora</button><button class="btn bad" type="button" data-act="desconectar">Desconectar</button>` : ""}</div>
+      <div class="row wrap" style="margin-top:12px"><button class="btn pri" type="button" data-act="conectar">${conectado ? "Guardar cambios" : "Conectar"}</button>${conectado ? `<button class="btn" type="button" data-act="qrConexion">${ic("scan")} Conectar otro equipo (QR)</button><button class="btn" type="button" data-act="syncAhora">${ic("refresh")} Sincronizar ahora</button><button class="btn bad" type="button" data-act="desconectar">Desconectar</button>` : ""}</div>
       ${S.pending.length ? `<p class="muted" style="margin:10px 0 0">${plural(S.pending.length, "movimiento guardado", "movimientos guardados")} en este equipo${conectado ? " esperando subir" : ""}.</p>` : ""}
+    </div>
+    <div class="card white wide">
+      <h3 class="row" style="gap:8px;margin-bottom:10px">${ic("phone")} Instalar en este equipo</h3>
+      ${installBlock(false)}
     </div>
     <div class="card white">
       <h3 class="row" style="gap:8px">${ic("user")} Vendedores</h3>
@@ -1510,21 +1568,33 @@ const ACT = {
   },
 
   conectar: async () => {
-    const token = $("#tk").value.trim() || S.local.token;
-    const repo = $("#rp").value.trim().replace(/^https:\/\/github\.com\//, "").replace(/\/$/, "") || REPO_DATOS;
-    if (!token) return toast("Pega la llave de GitHub");
+    const pegado = $("#tk").value.trim();
+    const cx = leerConexion(pegado); // también acepta el enlace de "Conectar otro equipo"
+    const token = cx ? cx.token : pegado || S.local.token;
+    const repo = cx ? cx.repo : $("#rp").value.trim().replace(/^https:\/\/github\.com\//, "").replace(/\/$/, "") || REPO_DATOS;
+    if (!token) return toast("Pega la llave de GitHub o el enlace de conexión");
     if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return toast("El repositorio debe ser usuario/nombre");
-    toast("Probando conexión…", 8000);
-    let r;
-    try { r = await gh(`/repos/${repo}`, { token }); }
-    catch (e) { return toast("No se pudo conectar. Revisa el internet."); }
-    if (r.status === 401) return toast("La llave no es válida o ya venció");
-    if (!r.ok) return toast("Esa llave no tiene acceso al repositorio " + repo);
-    const cambioRepo = repo !== (S.local.repo || REPO_DATOS);
-    S.local.token = token; S.local.repo = repo; await saveLocal();
-    if (cambioRepo) { S.remote = { files: {}, etag: "" }; S.serverOps = []; await store.set("remote", S.remote); }
-    toast("Conectada. Subiendo y bajando ventas…");
-    await sync(); vAjustes();
+    if (await conectarCon(token, repo)) vAjustes();
+  },
+  qrConexion: () => {
+    const link = linkConexion();
+    const qr = qrcode(0, "M"); qr.addData(link); qr.make();
+    openModal(`${mh("Conectar otro equipo")}
+      <p style="margin-top:0">En el otro celular abre la <b>cámara</b> y apunta a este código. Toca el enlace que aparece: se abre la app y pregunta si conectar.</p>
+      <div class="qr">${qr.createSvgTag({ cellSize: 6, margin: 3, scalable: true, alt: "Código para conectar otro equipo" })}</div>
+      <div class="note bad" style="font-weight:500;font-size:.86rem;align-items:flex-start">${ic("alert")}<span>Enséñalo solo a quien atiende la papelería. Quien lo escanee puede ver y cambiar las ventas.</span></div>
+      <p class="muted" style="font-size:.84rem">¿iPhone con la app ya en la pantalla de inicio? Copia el enlace, mándalo a ese iPhone y pégalo en <b>Ajustes → Llave de GitHub</b>.</p>
+      <div class="mf"><button class="btn" type="button" data-act="copiarConexion">${ic("copy")} Copiar enlace</button><button class="btn pri" type="button" data-act="cerrar">Listo</button></div>`);
+  },
+  copiarConexion: async () => {
+    try { await navigator.clipboard.writeText(linkConexion()); toast("Enlace copiado. Mándalo solo a quien atiende la papelería."); }
+    catch (e) { toast("No se pudo copiar en este equipo"); }
+  },
+  instalar: async () => {
+    if (!installEvt) return toast("Usa el menú del navegador para instalarla");
+    installEvt.prompt();
+    try { await installEvt.userChoice; } catch (e) { }
+    installEvt = null; VIEWS[current]();
   },
   desconectar: async () => {
     if (!confirm("¿Desconectar de GitHub? Este equipo dejará de ver las ventas de los otros (lo que ya bajó se queda aquí).")) return;
@@ -1564,10 +1634,14 @@ const VIEWS = { inicio: vInicio, vender: vVender, surtir: vSurtir, inventario: v
   $("#helpBtn").innerHTML = ic("help");
   $("#helpBtn").onclick = () => ayuda(false);
   $("#syncBtn").onclick = () => S.local.token ? sync(true) : go("ajustes");
+  const cx = leerConexion(location.hash); // se abrió desde el QR de otro equipo
+  if (cx) history.replaceState(null, "", location.pathname + "#inicio"); // quitar la llave de la barra de dirección
   const h = location.hash.slice(1);
-  go(VIEWS[h] ? h : VIEWS[S.local.lastView] ? S.local.lastView : "inicio");
+  go(cx ? "inicio" : VIEWS[h] ? h : VIEWS[S.local.lastView] ? S.local.lastView : "inicio");
   paintSync();
-  if (!S.local.welcomed) { S.local.welcomed = true; saveLocal(); ayuda(true); }
+  if (!S.local.welcomed) { S.local.welcomed = true; saveLocal(); if (!cx) ayuda(true); }
+  if (cx) pedirConexion(cx);
+  addEventListener("hashchange", () => { const c = leerConexion(location.hash); if (c) { history.replaceState(null, "", location.pathname + "#" + current); pedirConexion(c); } });
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   sync();
   setInterval(() => { if (document.visibilityState === "visible") sync(); }, 45000);

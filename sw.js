@@ -1,9 +1,9 @@
 /* Service worker: la app abre aunque no haya internet y se actualiza sola.
    Primero intenta internet (para traer cambios); si no hay señal usa la copia guardada.
    Si cambias algo y quieres forzar que se borre lo guardado, sube el número de VERSION. */
-const VERSION = "v4";
+const VERSION = "v5";
 const SHELL = "yebra-" + VERSION;
-const CORE = ["./", "index.html", "app.css", "app.js", "seed.js", "manifest.webmanifest",
+const CORE = ["./", "index.html", "app.css", "app.js", "seed.js", "qrcode.js", "manifest.webmanifest",
   "icons/apple-touch-icon.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {

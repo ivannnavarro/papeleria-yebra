@@ -347,3 +347,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:.86rem}
 @media (max-width:999px){.dash .d-table{order:1}.dash .dside{order:2}.dash .d-chart{order:3}}
 @media (max-width:699px){.kpis.five .kpi:first-child{grid-column:span 2}.tbl .hs{display:none}.tbl .cut{max-width:170px;white-space:normal}}
 .results .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-block;line-height:32px}
+.qr{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;max-width:300px;margin:6px auto 12px}
+.qr svg{display:block;width:100%;height:auto}
+.tip.inst{background:none;border:none;padding:0;position:relative}
+.tip.inst .info{margin:0;flex:1;padding-right:34px}
+.tip.inst .x{position:absolute;top:8px;right:8px}

@@ -10,6 +10,8 @@ Sirve igual en la computadora y en el celular. Tiene 7 secciones: **Inicio** (re
 
 ## 1. Instalarla
 
+También puedes hacerlo desde la app: en Inicio sale un aviso con los pasos, y en **Ajustes → Instalar en este equipo** hay un botón **Instalar app** cuando el navegador lo permite (Android y computadora). Queda con su ícono, como cualquier app, aunque no esté en la Play Store.
+
 ### En la computadora
 1. Abre el link en **Chrome** o **Edge**.
 2. A la derecha de la barra de dirección aparece un ícono de “Instalar” (una pantallita con flecha). Dale clic → **Instalar**.
@@ -43,6 +45,15 @@ Solo hay que sacar una **llave** (se hace una sola vez, unos 3 minutos):
 5. Haz lo mismo en el celular: pega **la misma llave**. Para pasarla al celular, mándatela a ti mismo por WhatsApp y **borra el mensaje** después.
 
 Listo. Arriba a la derecha el botón de la nube tiene un **puntito verde**. Si no hay internet, las ventas se guardan en el equipo y se suben solas cuando regresa la señal. Cada equipo revisa cambios de los demás cada 45 segundos y al abrir la app.
+
+### Conectar más celulares o computadoras (con QR, sin copiar la llave)
+1. En un equipo **ya conectado**: **Ajustes → Conectar otro equipo (QR)**.
+2. En el celular nuevo abre la **cámara**, apunta al código y toca el enlace que aparece.
+3. Se abre la app y pregunta **"Conectar este equipo"** → **Conectar**. Listo.
+4. Después ponla en la pantalla de inicio (sección 1). En **Android** queda conectada también la app instalada.
+   - **iPhone:** la app de la pantalla de inicio guarda sus datos aparte de Safari. Si ya la tenías instalada, en el equipo conectado toca **Copiar enlace**, mándalo a ese iPhone y pégalo en **Ajustes → Llave de GitHub → Conectar**.
+
+Enseña el QR o el enlace solo a quien atiende la papelería: quien lo use puede ver y cambiar las ventas.
 
 **Cuida la llave:** con ella se pueden cambiar las ventas guardadas (solo de ese repositorio, nada más de tu cuenta). Si se pierde un celular o crees que alguien la vio, bórrala en https://github.com/settings/personal-access-tokens y saca una nueva.
 
