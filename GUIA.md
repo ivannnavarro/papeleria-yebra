@@ -31,7 +31,9 @@ Sin este paso, cada equipo guarda **sus propias** ventas: lo que vendas en la co
 
 Se hace **una sola vez** (unos 5 minutos):
 
-1. Abre tu hoja de inventario en Google Sheets en la computadora.
+1. En la computadora entra a **https://sheets.new** con tu cuenta **personal** de Google (Gmail). Se crea una hoja **nueva y vacía** que es tuya. Ponle de nombre “Papelería Yebra - App”.
+   - No uses la hoja vieja del inventario: esa ya no se ocupa (el inventario ahora vive en la app) y además es de solo lectura.
+   - Evita la cuenta de la escuela: esas cuentas suelen tener bloqueado Apps Script.
 2. Menú **Extensiones → Apps Script**.
 3. Borra lo que aparece y pega todo el contenido del archivo **`google-sheets/Codigo.gs`** (está en esta misma carpeta, o en GitHub: https://github.com/ivannnavarro/papeleria-yebra/blob/main/google-sheets/Codigo.gs).
 4. En la línea `const CLAVE = 'cambia-esta-clave';` cambia `cambia-esta-clave` por una clave tuya (ej. `yebra-2026-pluma`). Guarda (ícono de disquete).
@@ -46,7 +48,7 @@ Se hace **una sola vez** (unos 5 minutos):
 
 Listo. Arriba a la derecha la app dice **✓ Guardado en la nube**. Si no hay internet, las ventas se guardan en el equipo y se suben solas cuando regresa la señal.
 
-En tu hoja aparecen 2 pestañas nuevas:
+En esa hoja nueva aparecen 2 pestañas:
 - **APP_Ventas**: todas las ventas, una línea por artículo (fecha, hora, vendedor, descripción, precio, efectivo, tarjeta…). Esta sí la puedes ver y filtrar.
 - **APP_Movimientos**: es la memoria de la app. **No la edites ni la borres.**
 
